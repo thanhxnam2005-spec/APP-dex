@@ -1834,7 +1834,7 @@ Yêu cầu:
           format: 'utf8',
           config: {
             // @ts-ignore
-            allowInsecureDecryptionWithPossibleModification: ignoreMDC
+            allowInsecureDecryption: ignoreMDC
           }
         });
 
