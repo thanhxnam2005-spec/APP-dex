@@ -662,6 +662,7 @@ export default function App() {
   }, []);
   const [isDecrypting, setIsDecrypting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ignoreMDC, setIgnoreMDC] = useState(false);
 
   // Batch Fix States
   const [batchInput, setBatchInput] = useState('');
@@ -1830,14 +1831,22 @@ Yêu cầu:
         const { data: decrypted } = await openpgp.decrypt({
           message,
           passwords: [password],
-          format: 'utf8'
+          format: 'utf8',
+          config: {
+            // @ts-ignore
+            allowInsecureDecryptionWithPossibleModification: ignoreMDC
+          }
         });
 
         setDecryptedContent(decrypted as string);
       }
     } catch (err: any) {
       console.error('Decryption/Read error:', err);
-      setError(err.message || 'Xử lý file thất bại. Vui lòng kiểm tra lại.');
+      let msg = err.message || 'Xử lý file thất bại. Vui lòng kiểm tra lại.';
+      if (msg.includes('Modification detected') || msg.includes('integrity check failed')) {
+        msg = "Phát hiện thay đổi trong dữ liệu (Modification detected). Thử nhấp vào 'Bỏ qua kiểm tra tính toàn vẹn' và thử lại.";
+      }
+      setError(msg);
     } finally {
       setIsDecrypting(false);
     }
@@ -3222,6 +3231,7 @@ ${limitedMarkers.map((m, i) => `${i+1}. ${m.fullSentence.replace(m.original, `[A
     setPassword('');
     setDecryptedContent(null);
     setError(null);
+    setIgnoreMDC(false);
   };
 
   const saveApiKeys = () => {
@@ -3811,7 +3821,7 @@ ${limitedMarkers.map((m, i) => `${i+1}. ${m.fullSentence.replace(m.original, `[A
         </AnimatePresence>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-4 bg-[#141414]/5 p-1 rounded-none border-2 border-[#141414]">
+          <TabsList className="grid w-full grid-cols-3 bg-[#141414]/5 p-1 rounded-none border-2 border-[#141414]">
             <TabsTrigger value="decrypt" className="rounded-none font-mono uppercase text-[10px] md:text-xs data-[state=active]:bg-[#141414] data-[state=active]:text-[#E4E3E0]">
               <Unlock className="w-4 h-4 mr-2 hidden sm:inline" />
               Giải mã
@@ -3825,6 +3835,16 @@ ${limitedMarkers.map((m, i) => `${i+1}. ${m.fullSentence.replace(m.original, `[A
               Biên dịch AI
             </TabsTrigger>
           </TabsList>
+
+          {!isSecureContext && (
+            <div className="mt-4 p-4 bg-amber-50 border-2 border-amber-500 text-amber-900 flex items-center gap-3 font-mono text-xs animate-pulse">
+              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+              <div>
+                <p className="font-bold">CẢNH BÁO: MÔI TRƯỜNG KHÔNG AN TOÀN</p>
+                <p>Thư viện giải mã (OpenPGP) yêu cầu HTTPS hoặc localhost để hoạt động ổn định. Một số tính năng có thể gặp lỗi.</p>
+              </div>
+            </div>
+          )}
 
           <TabsContent value="decrypt" className="space-y-6 mt-6">
             <Card className="border-[#141414] border-2 shadow-none bg-white/50 backdrop-blur-sm">
@@ -3887,6 +3907,24 @@ ${limitedMarkers.map((m, i) => `${i+1}. ${m.fullSentence.replace(m.original, `[A
                     className="border-[#141414] focus-visible:ring-0 focus-visible:border-2 rounded-none font-mono"
                     disabled={file?.name.toLowerCase().endsWith('.txt')}
                   />
+                  {!file?.name.toLowerCase().endsWith('.txt') && (
+                    <div className="flex items-center space-x-2 mt-2">
+                       <input 
+                        type="checkbox" 
+                        id="ignoreMDC" 
+                        checked={ignoreMDC}
+                        onChange={(e) => setIgnoreMDC(e.target.checked)}
+                        className="w-4 h-4 accent-[#141414] cursor-pointer"
+                      />
+                      <Label 
+                        htmlFor="ignoreMDC" 
+                        className="text-[10px] font-mono uppercase cursor-pointer opacity-70"
+                        title="Dùng khi file bị lỗi 'Modification detected'. Có nguy cơ dữ liệu bị sai lệch."
+                      >
+                        Bỏ qua kiểm tra tính toàn vẹn (Sửa lỗi 'Modification detected')
+                      </Label>
+                    </div>
+                  )}
                 </div>
 
                 <AnimatePresence>
